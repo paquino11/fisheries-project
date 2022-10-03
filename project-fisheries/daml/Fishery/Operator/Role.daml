@@ -1,0 +1,23 @@
+module Fishery.Operator.Role where
+
+import Fishery.Stakeholders.Role qualified as StackholderRole
+
+template Role
+  with
+    operator : Party
+    observers : [Party]
+  where
+    signatory operator
+
+    key operator : Party
+    maintainer key
+
+    nonconsuming choice OfferStackholdersRole : ContractId StackholderRole.Offer
+      with
+        provider : Party
+      controller operator
+        do
+          create StackholderRole.Offer with operator; provider; observers
+        
+
+    

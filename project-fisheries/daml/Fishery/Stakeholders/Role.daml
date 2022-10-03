@@ -1,0 +1,241 @@
+module Fishery.Stakeholders.Role where
+
+import Fishery.Stakeholders.Producer.Role qualified as ProducerService
+import Fishery.Stakeholders.Client.Role qualified as ClientService
+import Fishery.Stakeholders.Batch.Model qualified as BatchModel
+import Fishery.Stakeholders.Retailer.Role qualified as RetailerService
+import Fishery.Stakeholders.Transporter.Role qualified as TransporterService
+import DA.Optional
+--import DA.List
+
+template Role
+  with
+    operator : Party
+    provider : Party
+    observers : [Party]
+  where
+    signatory operator, provider
+    observer observers
+
+    key (operator, provider) : (Party, Party)
+    maintainer key._1
+
+    nonconsuming choice OfferProducerService : ContractId ProducerService.Offer
+      with
+        customer : Party
+      controller provider
+        do
+          create ProducerService.Offer with ..
+
+    nonconsuming choice OfferClientService : ContractId ClientService.Offer
+      with
+        customer : Party
+      controller provider
+        do
+          create ClientService.Offer with ..
+    
+    nonconsuming choice OfferRetailerService : ContractId RetailerService.Offer
+      with
+        customer : Party
+      controller provider
+        do
+          create RetailerService.Offer with ..
+    
+    nonconsuming choice OfferTransporterService : ContractId TransporterService.Offer
+      with
+        customer : Party
+      controller provider
+        do
+          create TransporterService.Offer with ..
+    
+    nonconsuming choice CreateBatch : ContractId BatchModel.Batch
+      with
+        producer : Party
+        name : Text
+        production_method : Text
+      controller provider
+        do
+          optionalProducerServiceId <- lookupByKey @ProducerService.Role (operator, provider, producer) --verificar se existe produtor
+          assert (isSome optionalProducerServiceId)
+          --optionalClientServiceIds <- mapA (\client -> lookupByKey @ClientService.Role (operator, provider, client)) clients -- verificar se existem clients
+          --assert (isNone $ elemIndex None optionalClientServiceIds)
+
+          create BatchModel.Batch with ..
+
+    nonconsuming choice OfferBatch : ContractId BatchModel.OfferedBatch
+      with 
+        producer : Party
+        name : Text
+        arrive_local : Text
+      controller provider
+        do
+          create BatchModel.OfferedBatch with ..
+    
+    nonconsuming choice TransportBatch : ContractId BatchModel.TransportedBatch
+      with 
+        producer : Party
+        name : Text
+        arrive_local : Text
+      controller provider
+        do
+          create BatchModel.TransportedBatch with ..
+    
+    nonconsuming choice GetBirthTemperature : ContractId BatchModel.BatchBirthTemperature
+      with
+        producer : Party
+        name : Text
+        local_temperature : Int
+        birth_date : Date
+      controller provider
+        do
+          optionalBatchModelId <- lookupByKey @BatchModel.Batch (operator, producer, name) --verificar se existe lote
+          assert (isSome optionalBatchModelId)
+          create BatchModel.BatchBirthTemperature with ..
+
+    nonconsuming choice GetFCR : ContractId BatchModel.BatchFCR
+      with
+        producer : Party
+        name : Text
+        fcr : Int
+      controller provider
+        do
+          optionalBatchModelId <- lookupByKey @BatchModel.Batch (operator, producer, name) --verificar se existe lote
+          assert (isSome optionalBatchModelId)
+          create BatchModel.BatchFCR with ..
+
+    nonconsuming choice GetFeedAndLocalTemperature : ContractId BatchModel.BatchFeedAndLocalTemperature
+      with
+        producer : Party
+        name : Text
+        local_temperature : Int
+        feed_index : Int
+      controller provider
+        do
+          optionalBatchModelId <- lookupByKey @BatchModel.Batch (operator, producer, name) --verificar se existe lote
+          assert (isSome optionalBatchModelId)
+          create BatchModel.BatchFeedAndLocalTemperature with ..
+
+    nonconsuming choice NeedMedication : ContractId BatchModel.BatchNeedMedication
+      with
+        producer : Party
+        name : Text
+        feed_index : Int
+      controller provider
+        do
+          optionalBatchModelId <- lookupByKey @BatchModel.Batch (operator, producer, name) --verificar se existe lote
+          assert (isSome optionalBatchModelId)
+          create BatchModel.BatchNeedMedication with ..
+
+    nonconsuming choice GetFinalBatch : ContractId BatchModel.BatchFinal
+      with
+        producer : Party
+        name : Text
+        death_date : Date
+        death_local : Text
+        weight : Int
+      controller provider
+        do
+          optionalBatchModelId <- lookupByKey @BatchModel.Batch (operator, producer, name) --verificar se existe lote
+          assert (isSome optionalBatchModelId)
+          create BatchModel.BatchFinal with ..
+    
+    nonconsuming choice TransformBatch : ContractId BatchModel.BatchTransform
+      with
+        producer : Party
+        name : Text
+        transformation_type : Text
+        temperature_until_package : Int
+      controller provider
+        do
+          optionalBatchModelId <- lookupByKey @BatchModel.Batch (operator, producer, name) --verificar se existe lote
+          assert (isSome optionalBatchModelId)
+          create BatchModel.BatchTransform with ..
+
+    
+    nonconsuming choice TrackPackageStore : ContractId BatchModel.PackageStore
+      with
+        producer : Party
+        clients : [Party]
+        name : Text
+        transformation_type : Text
+        arrive_local : Text
+        store_temperature : Int
+        store_date : Date
+        store_location : Text
+        arrive_date : Date
+      controller provider
+        do
+          optionalBatchModelId <- lookupByKey @BatchModel.TransportedBatch (operator, provider, producer, name, arrive_local) --verificar se existe lote
+          assert (isSome optionalBatchModelId)
+          create BatchModel.PackageStore with ..
+
+    nonconsuming choice ViewDetails : ContractId BatchModel.PackageAllDetails
+      with
+        producer : Party
+        retailer : Party
+        transporter : Party
+        client : Party
+        batch_name : Text
+        production_method : Text
+        death_date : Date
+        arrive_date : Date
+        arrive_temperature : Int
+        arrive_local : Text
+        birth_date : Date
+        death_local : Text
+        weight : Int
+        transformation_type : Text
+        temperature_until_package : Int
+        store_temperature : Int
+        store_date : Date
+        store_location : Text
+        package_name : Text
+        local_birth_temperature : Int
+        feed_index : Int
+        fcr : Int
+        package_price : Int
+        qrcode : Text
+      controller provider
+        do
+          optionalBatchModelId <- lookupByKey @BatchModel.TransportedBatch (operator, provider, producer, package_name, arrive_local) --verificar se existe lote
+          assert (isSome optionalBatchModelId)
+          create BatchModel.PackageAllDetails with ..
+
+
+    nonconsuming choice PayFishPackage : ContractId BatchModel.PayPackage
+      with
+        producer : Party
+        client : Party
+        package_price : Int
+        package_name : Text
+        arrive_local : Text
+        money_on_wallet : Int
+      controller provider
+        do
+          optionalBatchModelId <- lookupByKey @BatchModel.TransportedBatch (operator, provider, producer, package_name, arrive_local) --verificar se existe lote
+          assert (isSome optionalBatchModelId)
+          create BatchModel.PayPackage with ..
+
+
+template Offer
+  with
+    operator : Party
+    provider : Party
+    observers : [Party]
+  where
+    signatory operator
+    observer provider
+
+    choice Accept : ContractId Role
+        controller provider
+            do
+                create Role with operator; provider; observers
+    
+    choice Decline : ()
+        controller provider
+            do
+                return ()
+    
+
+
+

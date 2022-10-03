@@ -1,0 +1,50 @@
+module Fishery.Stakeholders.Retailer.Role where
+
+import DA.Optional qualified as O
+import Fishery.Stakeholders.Batch.Model qualified as BatchModel
+
+template Role
+  with
+    operator : Party
+    provider : Party
+    customer : Party
+  where
+    signatory operator, provider, customer
+
+    key (operator, provider, customer) : (Party, Party, Party)
+    maintainer key._1
+
+    nonconsuming choice RequestBatch : (ContractId BatchModel.BatchRequest) 
+      with
+        name : Text
+        producer : Party
+        death_date : Date
+        arrive_date : Date
+        arrive_temperature : Int
+        arrive_local : Text
+      controller customer
+        do
+          --(cid, c) <- fetchByKey @CourseModel.OfferedCourse (operator, provider, name)
+          optionalCid <- lookupByKey @BatchModel.OfferedBatch (operator, provider, producer, name) --verificar se existe lote transformado e produtor
+          assertMsg "The contract youre looking doesnt exist name lote" (O.isSome optionalCid)
+          create BatchModel.BatchRequest with .. 
+
+
+template Offer
+  with
+    operator : Party
+    provider : Party
+    customer : Party
+  where
+    signatory operator, provider
+    observer customer
+
+    choice Accept : ContractId Role
+        controller customer
+            do
+                create Role with ..
+    
+    choice Decline : ()
+        controller customer
+            do
+                pure ()

@@ -1,0 +1,86 @@
+module Fishery.Stakeholders.Producer.Role where
+
+import DA.Optional
+import DA.List
+import Fishery.Stakeholders.Batch.Model qualified as BatchModel
+import Fishery.Stakeholders.Client.Role qualified as ClientRole
+
+template Role
+  with
+    operator : Party
+    provider : Party
+    customer : Party
+  where
+    signatory operator, provider, customer
+
+    key (operator, provider, customer) : (Party, Party, Party)
+    maintainer key._1
+    
+
+    choice Terminate : ()
+        with
+            ctrl : Party 
+        controller ctrl
+            do
+                assertMsg 
+                    ("ctrl " <> show ctrl <> "is not a party allowed to do this action")
+                    (ctrl == provider || ctrl == customer)
+                return ()
+
+    nonconsuming choice CreateBatch : ContractId BatchModel.Batch
+      with
+        producer : Party
+        clients : [Party]
+        name : Text
+        production_method : Text
+      controller provider
+        do
+          optionalProducerServiceId <- lookupByKey @Role (operator, provider, producer) --verificar se existe produtor
+          assert (isSome optionalProducerServiceId)
+          optionalClientServiceIds <- mapA (\client -> lookupByKey @ClientRole.Role (operator, provider, client)) clients -- verificar se existem clients
+          assert (isNone $ elemIndex None optionalClientServiceIds)
+
+          create BatchModel.Batch with ..
+    
+    nonconsuming choice GetTemperature : ContractId BatchModel.BatchBirthTemperature
+      with
+        producer : Party
+        clients : [Party]
+        name : Text
+        local_temperature : Int
+        birth_date : Date
+      controller provider
+        do
+          optionalBatchModelId <- lookupByKey @BatchModel.Batch (operator, producer, name) --verificar se existe lote
+          assert (isSome optionalBatchModelId)
+          create BatchModel.BatchBirthTemperature with ..
+
+    nonconsuming choice GetFCR : ContractId BatchModel.BatchFCR
+      with
+        producer : Party
+        name : Text
+        fcr : Int
+      controller provider
+        do
+          optionalBatchModelId <- lookupByKey @BatchModel.Batch (operator, producer, name) --verificar se existe lote
+          assert (isSome optionalBatchModelId)
+          create BatchModel.BatchFCR with ..
+
+template Offer
+  with
+    operator : Party
+    provider : Party
+    customer : Party
+  where
+    signatory operator, provider
+    observer customer
+
+    choice Accept : ContractId Role
+        controller customer
+            do
+                create Role with ..
+    
+    choice Decline : ()
+        controller customer
+            do
+                pure ()

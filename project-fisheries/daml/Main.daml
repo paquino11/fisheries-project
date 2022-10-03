@@ -1,0 +1,46 @@
+module Main where
+
+import Daml.Script
+
+type AssetId = ContractId Asset
+
+template Asset -- A template defines a type of contract that can be created, and who has the right to do so. Contracts are instances of templates.
+  with -- 3 atributos
+    issuer : Party 
+    owner  : Party
+    name   : Text
+  where
+    ensure name /= ""
+    signatory issuer -- este contrato para exisitr precisa que o issuer tenha assinado este contrato
+                      --The signatory keyword specifies the signatories of a contract. These are the parties whose authority is 
+                      --required to create the contract or archive it – just like a real contract. Every contract must have at least one signatory.
+    observer owner -- quem for instanciado como owner vai ter visibilidade sobre o contrato
+    choice Give : AssetId -- vai ter como output AssetID
+      with
+        newOwner : Party -- com input newOwner do tipo Party
+      controller owner --o controlador desta ação vai ser o owner
+      do create this with -- o que ação vai fazer é criar um contrato do mesmo tipo "Asset" 
+           owner = newOwner --
+
+setup : Script AssetId
+setup = script do
+-- user_setup_begin
+  alice <- allocatePartyWithHint "Alice" (PartyIdHint "Alice") -- criar as chaves "wallets"
+  bob <- allocatePartyWithHint "Bob" (PartyIdHint "Bob")  -- criar as chaves "wallets"
+  --aliceId <- validateUserId "alice" --não é relevante porq faz parte da nova versão, pode ser apagado
+  --bobId <- validateUserId "bob" --não é relevante porq faz parte da nova versão , pode ser apagado
+  --createUser (User aliceId (Some alice)) [CanActAs alice] --não é relevante porq faz parte da nova versão, pode ser apagado 
+  --createUser (User bobId (Some bob)) [CanActAs bob] --não é relevante porq faz parte da nova versão, pode ser apagado 
+-- user_setup_end
+
+  aliceTV <- submit alice do --alice está a submeter uma transação
+    createCmd Asset with --vai criar um comando do asset em que diz que
+      issuer = alice -- o issuer é a alice
+      owner = alice -- o owner é a alice
+      name = "TV" -- e o nome é TV
+
+  bobTV <- submit alice do
+    exerciseCmd aliceTV Give with newOwner = bob
+
+  submit bob do
+    exerciseCmd bobTV Give with newOwner = alice

@@ -1,0 +1,93 @@
+module Tests.Fishery where
+
+import Daml.Script
+import DA.Date
+
+import Fishery.Operator.Role qualified as OperatorRole
+import Fishery.Stakeholders.Role qualified as StakeholderRole
+import Fishery.Stakeholders.Producer.Role qualified as ProducerRole
+import Fishery.Stakeholders.Client.Role qualified as ClientRole
+import Fishery.Stakeholders.Retailer.Role qualified as RetailerRole
+import Fishery.Stakeholders.Transporter.Role qualified as TransporterRole
+
+setup : Script ()
+setup = script do
+
+  --CRIAÇÃO DE ROLES
+  operator       <- allocatePartyWithHint "Operator"     $ PartyIdHint "Operator"
+  stakeholder    <- allocatePartyWithHint "Stakeholder"  $ PartyIdHint "Stakeholder"
+  producer1      <- allocatePartyWithHint "Producer1"    $ PartyIdHint "Producer1"
+  producer2      <- allocatePartyWithHint "Producer2"    $ PartyIdHint "Producer2"
+  retailer1      <- allocatePartyWithHint "Retailer1"    $ PartyIdHint "Retailer1"
+  retailer2      <- allocatePartyWithHint "Retailer2"    $ PartyIdHint "Retailer2"
+  transporter1   <- allocatePartyWithHint "Transporter1" $ PartyIdHint "Transporter1"
+  client1        <- allocatePartyWithHint "Client1"      $ PartyIdHint "Client1"
+  client2        <- allocatePartyWithHint "Client2"      $ PartyIdHint "Client2"
+  public         <- allocatePartyWithHint "Public"       $ PartyIdHint "Public" 
+  --criar operator
+  operatorRoleCid <- submit operator do createCmd OperatorRole.Role with observers = [public]; ..
+  --criar stakeholder
+  stakeholderRoleOfferCid <- submit operator do exerciseCmd operatorRoleCid OperatorRole.OfferStackholdersRole with provider = stakeholder
+  stakeholderRoleCid <- submit stakeholder do exerciseCmd stakeholderRoleOfferCid StakeholderRole.Accept
+  --criar produtor1
+  producerServiceOfferCid1  <- submit stakeholder do exerciseCmd stakeholderRoleCid StakeholderRole.OfferProducerService with customer = producer1
+  producerServiceCid1       <- submit producer1 do exerciseCmd producerServiceOfferCid1 ProducerRole.Accept
+  ----criar produtor2
+  producerServiceOfferCid2  <- submit stakeholder do exerciseCmd stakeholderRoleCid StakeholderRole.OfferProducerService with customer = producer2
+  producerServiceCid2       <- submit producer2 do exerciseCmd producerServiceOfferCid2 ProducerRole.Accept
+  --criar retailer1
+  retailerServiceOfferCid1  <- submit stakeholder do exerciseCmd stakeholderRoleCid StakeholderRole.OfferRetailerService with customer = retailer1
+  retailerServiceCid1       <- submit retailer1 do exerciseCmd retailerServiceOfferCid1 RetailerRole.Accept
+  --criar retailer2
+  retailerServiceOfferCid2  <- submit stakeholder do exerciseCmd stakeholderRoleCid StakeholderRole.OfferRetailerService with customer = retailer2
+  retailerServiceCid2       <- submit retailer2 do exerciseCmd retailerServiceOfferCid2 RetailerRole.Accept
+  --criar transporter1
+  transporter1ServiceOfferCid1  <- submit stakeholder do exerciseCmd stakeholderRoleCid StakeholderRole.OfferTransporterService with customer = transporter1
+  transporter1ServiceCid1       <- submit transporter1 do exerciseCmd transporter1ServiceOfferCid1 TransporterRole.Accept
+  --criar cliente1
+  clientServiceOfferCid  <- submit stakeholder do exerciseCmd stakeholderRoleCid StakeholderRole.OfferClientService with customer = client1
+  clientServiceCid       <- submit client1 do exerciseCmd clientServiceOfferCid ClientRole.Accept
+  --criar cliente2
+  clientServiceOfferCid  <- submit stakeholder do exerciseCmd stakeholderRoleCid StakeholderRole.OfferClientService with customer = client2
+  clientServiceCid       <- submit client2 do exerciseCmd clientServiceOfferCid ClientRole.Accept
+
+  -- SIMULAÇÃO DO FLOW CHART IMPLEMENTADO
+  -- Passo 1 - criar lote de peixe
+  batchModelCid <- submit stakeholder do exerciseCmd stakeholderRoleCid StakeholderRole.CreateBatch with producer = producer2; name = "Lote de Robalo"; production_method = "Aquacultura" 
+
+  -- Passo 2 - Tracking temperatura local e data de nascimento
+  batchModelCid <- submit stakeholder do exerciseByKeyCmd @StakeholderRole.Role (operator, stakeholder) StakeholderRole.GetBirthTemperature with producer = producer2; name = "Lote de Robalo"; local_temperature = 14; birth_date = date 2022 Mar 3  
+
+  -- Passo 3 - Tracking FCR
+  batchModelCid <- submit stakeholder do exerciseByKeyCmd @StakeholderRole.Role (operator, stakeholder) StakeholderRole.GetFCR with producer = producer2; name = "Lote de Robalo"; fcr = 11
+
+  -- Passo 4 - Tracking da temperatura e alimentação
+  batchModelCid <- submit stakeholder do exerciseByKeyCmd @StakeholderRole.Role (operator, stakeholder) StakeholderRole.GetFeedAndLocalTemperature with producer = producer2; name = "Lote de Robalo"; local_temperature = 14; feed_index = 28
+
+  -- Passo 5 - Track de se o lote necessita de medicação
+  batchModelCid <- submit stakeholder do exerciseByKeyCmd @StakeholderRole.Role (operator, stakeholder) StakeholderRole.NeedMedication with producer = producer2; name = "Lote de Robalo"; feed_index = 9
+
+  -- Passo 6 - Pescar Lote
+  batchModelCid <- submit stakeholder do exerciseByKeyCmd @StakeholderRole.Role (operator, stakeholder) StakeholderRole.GetFinalBatch with producer = producer2; name = "Lote de Robalo"; death_date = date 2022 Mar 9; death_local = "Fish Farm"; weight = 51
+  
+  --Passo 7 - Indicar o tipo de transformação do lote 
+  batchModelCid <- submit stakeholder do exerciseByKeyCmd @StakeholderRole.Role (operator, stakeholder) StakeholderRole.TransformBatch with producer = producer2; name = "Lote de Robalo"; transformation_type = "Fresh Fish"; temperature_until_package = 14
+
+  -- Passo 8 - Retailer efetua um pedido de pacote ao produtor 
+  requestTransformBatchByRetailerToProducer <- submit stakeholder do exerciseByKeyCmd @StakeholderRole.Role (operator, stakeholder) StakeholderRole.OfferBatch with producer = producer2; name = "Fresh Fish"; arrive_local = "Rua do Lidl"
+  submitMulti [retailer1] [public] do exerciseByKeyCmd @RetailerRole.Role (operator, stakeholder, retailer1) RetailerRole.RequestBatch with name = "Fresh Fish"; producer = producer2; arrive_date = date 2022 Mar 11; death_date = date 2022 Mar 9; arrive_temperature = 14; arrive_local = "Rua do Lidl"
+
+  -- Passo 9 - Transportadora transporta pacote de peixe
+  requestTransportBatch <- submit stakeholder do exerciseByKeyCmd @StakeholderRole.Role (operator, stakeholder) StakeholderRole.TransportBatch with producer = producer2; name = "Fresh Fish"; arrive_local = "Rua do Lidl"
+  submitMulti [transporter1] [public] do exerciseByKeyCmd @TransporterRole.Role (operator, stakeholder, transporter1) TransporterRole.TrackAndTransportBatch with retailer = retailer2; transporter = transporter1; name = "Fresh Fish"; producer = producer2; arrive_local = "Rua do Lidl"; arrive_date = date 2022 Mar 10; arrive_temperature = 13
+
+  -- Passo 10 - Retailer armazena o pacote na loja
+  packageStoreTrackCid <- submit stakeholder do exerciseByKeyCmd @StakeholderRole.Role (operator, stakeholder) StakeholderRole.TrackPackageStore with producer = producer2; clients = [client1, client2]; name = "Fresh Fish"; transformation_type = "Fresh Fish"; arrive_local = "Rua do Lidl"; store_temperature = 12; store_date = date 2022 Mar 10; store_location = "Secção dos congelados"; arrive_date = date 2022 Mar 10
+  
+  -- Passo 11 - Cliente observa todos os detalhes do pacote de peixe
+  viewAllDetailsByClientCid <- submit stakeholder do exerciseByKeyCmd @StakeholderRole.Role (operator, stakeholder) StakeholderRole.ViewDetails with producer = producer2; retailer = retailer1; transporter = transporter1; client = client1; batch_name = "Lote de Robalo"; production_method = "Aquacultura"; death_date = date 2022 Mar 9; arrive_date = date 2022 Mar 11; arrive_temperature = 14; arrive_local = "Rua do Lidl"; birth_date = date 2022 Mar 3; death_local = "Fish Farm"; weight = 50; transformation_type = "Fresh Fish"; temperature_until_package = 14; store_temperature = 12; store_date = date 2022 Mar 10; store_location = "Secção dos congelados"; package_name = "Fresh Fish"; local_birth_temperature = 13; feed_index = 12; fcr = 11; package_price = 7; qrcode = "56ASD598ASD5F6A8W"
+
+  -- Passo 12 - Cliente efetua a compra
+  payFishPackage <- submit stakeholder do exerciseByKeyCmd @StakeholderRole.Role (operator, stakeholder) StakeholderRole.PayFishPackage with producer = producer2; client = client1; package_price = 7; package_name = "Fresh Fish"; arrive_local = "Rua do Lidl"; money_on_wallet = 8
+
+  pure ()

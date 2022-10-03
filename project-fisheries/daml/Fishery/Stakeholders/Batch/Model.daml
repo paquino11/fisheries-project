@@ -1,0 +1,254 @@
+module Fishery.Stakeholders.Batch.Model where
+
+import DA.Date
+
+template Batch
+    with
+        operator : Party
+        provider : Party
+        producer : Party
+        name : Text
+        production_method : Text
+    where
+        signatory operator, provider
+        observer producer
+        
+        key (operator, producer, name) : (Party, Party, Text)
+        maintainer key._1
+        
+
+template OfferedBatch
+    with
+       operator : Party
+       provider : Party
+       producer : Party
+       observers : [Party]
+       name : Text
+    where
+        signatory operator, provider
+        observer observers
+
+        key (operator, provider, producer, name) : (Party, Party, Party, Text)
+        maintainer key._1
+
+template TransportedBatch
+    with
+       operator : Party
+       provider : Party
+       producer : Party
+       observers : [Party]
+       name : Text
+       arrive_local : Text
+    where
+        signatory operator, provider
+        observer observers
+
+        key (operator, provider, producer, name, arrive_local) : (Party, Party, Party, Text, Text)
+        maintainer key._1
+
+
+template BatchRequest
+    with
+        operator : Party
+        provider : Party
+        producer : Party
+        customer : Party
+        name : Text
+        death_date : Date
+        arrive_date : Date
+        arrive_temperature : Int
+        arrive_local : Text
+    where
+        signatory operator, provider, customer
+
+        ensure addDays death_date 3 > arrive_date && arrive_temperature < 15--a data de chegada não pode ultrapassar 3 dias após o abate
+
+template BatchTransport
+  with
+    operator : Party
+    producer : Party
+    --retailer : Party
+    name : Text
+    arrive_local : Text
+    arrive_temperature : Int
+  where
+    signatory operator, producer
+    observer producer 
+
+template BatchTrackAndTransport
+  with
+    operator : Party
+    producer : Party
+    --retailer : Party
+    transporter : Party
+    name : Text
+    arrive_local : Text
+    arrive_temperature : Int
+  where
+    signatory operator, transporter
+    observer producer
+
+    ensure arrive_temperature < 15
+
+template BatchTransported
+  with
+    operator : Party
+    producer : Party
+    --retailer : Party
+    name : Text
+    arrive_local : Text
+    arrive_temperature : Int
+  where
+    signatory operator, producer
+
+template BatchBirthTemperature
+    with
+        operator : Party
+        provider : Party
+        producer : Party
+        name : Text
+        local_temperature : Int
+        birth_date : Date
+    where
+        signatory operator, provider
+        observer producer
+
+        ensure local_temperature < 15 && birth_date > date 2022 Mar 2  
+
+
+template BatchFeedAndLocalTemperature
+    with
+        operator : Party
+        provider : Party
+        producer : Party
+        name : Text
+        local_temperature : Int
+        feed_index : Int
+    where
+        signatory operator, provider
+        observer producer
+
+        ensure local_temperature < 15 && feed_index > 23
+
+template BatchNeedMedication
+    with
+        operator : Party
+        provider : Party
+        producer : Party
+        name : Text
+        feed_index : Int
+    where
+        signatory operator, provider
+        observer producer
+
+        ensure feed_index < 15 
+
+template BatchFCR
+    with
+        operator : Party
+        provider : Party
+        producer : Party
+        name : Text
+        fcr : Int
+    where
+        signatory operator, provider
+        observer producer
+
+        ensure fcr > 10
+
+template BatchFinal
+    with
+        operator : Party
+        provider : Party
+        producer : Party
+        name : Text
+        death_date : Date
+        death_local : Text
+        weight : Int
+    where
+        signatory operator, provider
+        observer producer
+
+        ensure weight > 50
+
+template BatchTransform
+  with
+    operator : Party
+    provider : Party
+    producer : Party
+    name : Text
+    transformation_type : Text
+    temperature_until_package : Int
+  where
+    signatory operator, provider
+    observer producer
+    
+    ensure (transformation_type == "Fresh Fish" || transformation_type == "Fillet") && temperature_until_package < 15
+
+    
+template PackageStore
+    with
+        operator : Party
+        provider : Party
+        producer : Party
+        clients : [Party]
+        name : Text
+        store_temperature : Int
+        store_date : Date
+        store_location : Text
+        arrive_date : Date
+    where
+        signatory operator, provider
+        observer clients
+
+        ensure store_temperature < 15 && addDays  arrive_date 5 > store_date
+
+        
+
+template PackageAllDetails
+    with
+        operator : Party
+        provider : Party
+        producer : Party
+        retailer : Party
+        transporter : Party
+        client : Party
+        batch_name : Text
+        production_method : Text
+        death_date : Date
+        arrive_date : Date
+        arrive_temperature : Int
+        arrive_local : Text
+        birth_date : Date
+        death_local : Text
+        weight : Int
+        transformation_type : Text
+        temperature_until_package : Int
+        store_temperature : Int
+        store_date : Date
+        store_location : Text
+        package_name : Text
+        local_birth_temperature : Int
+        feed_index : Int
+        fcr : Int
+        package_price : Int
+    where
+        signatory operator, provider
+        observer client
+
+        ensure store_temperature < 15 && addDays  arrive_date 5 > store_date
+
+template PayPackage
+    with
+        operator : Party
+        producer : Party
+        client : Party
+        package_price : Int
+        package_name : Text
+        arrive_local : Text
+        money_on_wallet : Int
+    where
+        signatory operator
+        observer client
+
+        ensure money_on_wallet > package_price

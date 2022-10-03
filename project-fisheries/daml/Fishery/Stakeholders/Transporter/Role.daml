@@ -1,0 +1,50 @@
+module Fishery.Stakeholders.Transporter.Role where
+
+import DA.Optional qualified as O
+import Fishery.Stakeholders.Batch.Model qualified as BatchModel
+
+template Role
+  with
+    operator : Party
+    provider : Party
+    customer : Party
+  where
+    signatory operator, provider, customer
+
+    key (operator, provider, customer) : (Party, Party, Party)
+    maintainer key._1
+
+    nonconsuming choice TrackAndTransportBatch : (ContractId BatchModel.BatchTrackAndTransport) 
+      with
+        name : Text
+        producer : Party
+        retailer : Party
+        transporter : Party
+        arrive_date : Date
+        arrive_temperature : Int
+        arrive_local : Text
+      controller customer
+        do
+          optionalCid <- lookupByKey @BatchModel.TransportedBatch (operator, provider, producer, name, arrive_local) --verificar se existe lote transformado e produtor
+          assertMsg "The contract youre looking doesnt exist name lote" (O.isSome optionalCid)
+          create BatchModel.BatchTrackAndTransport with .. 
+
+
+template Offer
+  with
+    operator : Party
+    provider : Party
+    customer : Party
+  where
+    signatory operator, provider
+    observer customer
+
+    choice Accept : ContractId Role
+        controller customer
+            do
+                create Role with ..
+    
+    choice Decline : ()
+        controller customer
+            do
+                pure ()
